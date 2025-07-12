@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Surveillance UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { margin: 0; font-family: sans-serif; background: #111; color: #eee; }
+    #videoWrapper { text-align: center; background: black; }
+    #videoStream { width: 100%; max-width: 100vw; height: auto; cursor: pointer; }
+    #settingsPanel {
+      padding: 10px;
+      background: #222;
+      display: none;
+    }
+    .control { margin: 10px 0; }
+    button, input[type=range] {
+      width: 100%;
+      padding: 5px;
+      font-size: 1rem;
+      background: #444;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    label { display: block; margin-bottom: 4px; }
+    #logBox {
+      background: #000;
+      padding: 5px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 0.9em;
+      height: 100px;
+      overflow-y: auto;
+      border: 1px solid #333;
+    }
+  </style>
+</head>
+<body>
+
+<div id="videoWrapper">
+  <img id="videoStream" src="/stream" onclick="toggleFullscreen()" />
+</div>
+
+<button onclick="toggleSettings()">⚙️ Show/Hide Settings</button>
+
+<div id="settingsPanel">
+  <div class="control">
+    <label>Flash Sensitivity</label>
+    <input type="range" id="flashSensitivity" min="1" max="20" step="0.5">
+  </div>
+
+  <div class="control">
+    <label>Laser Sensitivity</label>
+    <input type="range" id="laserSensitivity" min="1" max="100" step="1">
+  </div>
+
+  <div class="control">
+    <label><input type="checkbox" id="autosaveFlash"> Auto-save on Flash</label>
+    <label><input type="checkbox" id="autosaveLaser"> Auto-save on Laser</label>
+    <label><input type="checkbox" id="soundFlash"> Flash Alert Sound</label>
+    <label><input type="checkbox" id="soundLaser"> Laser Alert Sound</label>
+  </div>
+
+  <div class="control">
+    <button onclick="manualSave()">💾 Save Buffer Now</button>
+    <button onclick="toggleScreen()">🖥️ Toggle Screen Power</button>
+  </div>
+
+  <div class="control">
+    <label>Last Detections:</label>
+    <div id="logBox"></div>
+  </div>
+</div>
+
+<script>
+  let screenOn = true;
+
+  function toggleSettings() {
+    const panel = document.getElementById('settingsPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function toggleFullscreen() {
+    const video = document.getElementById('videoStream');
+    if (!document.fullscreenElement) {
+      video.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  function fetchConfig() {
+    fetch('/get_config').then(res => res.json()).then(cfg => {
+      document.getElementById('flashSensitivity').value = cfg.detection.flash_threshold;
+      document.getElementById('laserSensitivity').value = cfg.detection.laser_threshold;
+      document.getElementById('autosaveFlash').checked = cfg.detection.autosave_flash;
+      document.getElementById('autosaveLaser').checked = cfg.detection.autosave_laser;
+      document.getElementById('soundFlash').checked = cfg.detection.sound_flash;
+      document.getElementById('soundLaser').checked = cfg.detection.sound_laser;
+
+      const logBox = document.getElementById('logBox');
+      logBox.innerHTML = cfg.log.map(l => `<div>${l}</div>`).join('');
+    });
+  }
+
+  function pushConfig() {
+    const data = {
+      detection: {
+        flash_threshold: parseFloat(document.getElementById('flashSensitivity').value),
+        laser_threshold: parseFloat(document.getElementById('laserSensitivity').value),
+        autosave_flash: document.getElementById('autosaveFlash').checked,
+        autosave_laser: document.getElementById('autosaveLaser').checked,
+        sound_flash: document.getElementById('soundFlash').checked,
+        sound_laser: document.getElementById('soundLaser').checked
+      }
+    };
+    fetch('/update_config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  }
+
+  function manualSave() {
+    fetch('/save_buffer', { method: 'POST' });
+  }
+
+  function toggleScreen() {
+    screenOn = !screenOn;
+    fetch('/toggle_screen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: screenOn ? 'on' : 'off' })
+    });
+  }
+
+  // Polling loop
+  setInterval(() => {
+    fetchConfig();
+    pushConfig();
+  }, 1500);
+</script>
+
+</body>
+</html>
