@@ -1,0 +1,159 @@
+# Surveillance System Module Map
+
+MODULE: CameraInitializer
+- Purpose: Set up and configure the Raspberry Pi camera with all auto controls disabled
+- Inputs:
+    - Resolution (tuple)
+    - Frame rate (float)
+    - Exposure time (int, microseconds)
+    - Gain, color gains, brightness, contrast, saturation, sharpness, denoise strength
+    - Optional demosaicing mode (enabled/disabled or raw output)
+- Outputs:
+    - Configured Picamera2 object
+    - Optional still image capture (for testing)
+    - Safe reconfiguration interface (pause → reconfigure → resume)
+- Depends on:
+    - picamera2
+
+MODULE: FrameBuffer
+- Purpose: Store a rolling queue of video frames and allow saving them when triggered
+- Inputs:
+    - Frames (image arrays with timestamp)
+    - Config: max buffer seconds, FPS, resolution
+- Outputs:
+    - Buffered frame list
+    - Video file when triggered
+    - Memory usage estimate (in MB)
+    - Auto-named file using timestamp for all saves
+- Depends on:
+    - collections.deque
+    - threading
+    - OpenCV (cv2)
+
+MODULE: FlashDetector
+- Purpose: Detect a global brightness increase in the scene
+- Inputs:
+    - Live frame
+    - Rolling brightness average (history window in seconds or frames)
+    - Sensitivity threshold (e.g., multiplier or delta)
+- Outputs:
+    - Boolean trigger flag
+    - Optional timestamp or confidence level
+- Constraints:
+    - Detection window must be shorter than buffer length
+- Depends on:
+    - NumPy
+
+MODULE: LaserDetector
+- Purpose: Detect a sudden, small bright spot in a dark scene
+- Inputs:
+    - Live frame
+    - Background model (rolling average or low-pass version of past frames)
+    - Pixel contrast threshold, minimum/maximum blob size
+- Outputs:
+    - Coordinates or region of detected spot
+    - Boolean trigger flag
+- Constraints:
+    - Detection should be fast, localized, high-contrast
+- Depends on:
+    - NumPy
+    - OpenCV
+
+MODULE: DetectorManager
+- Purpose: Run all detection modules and respond to triggers
+- Inputs:
+    - Frames from camera stream
+- Outputs:
+    - Boolean event trigger flag
+    - Logs detection messages
+    - Maintains detection event log (e.g. last 10 events with type and timestamp)
+    - Optionally notify buffer or UI
+- Depends on:
+    - FlashDetector, LaserDetector
+
+MODULE: UI (planned)
+- Purpose: Let user adjust camera and detection parameters and view alerts
+- Inputs:
+    - User input (sliders, dropdowns, buttons)
+- Outputs:
+    - Updates to config/state
+    - Live preview
+    - Fullscreen video toggle or collapsible settings panel
+    - Buffer size readout
+    - Detection thresholds for flash and laser (fine-grained sliders with numeric feedback)
+    - Toggle auto-save buffer on flash trigger
+    - Toggle auto-save buffer on laser trigger
+    - Toggle alert sound on flash trigger
+    - Toggle alert sound on laser trigger (separate sound)
+    - Touchscreen display toggle
+    - Manual buffer save button
+    - Camera configuration controls:
+        - FPS
+        - Resolution
+        - Exposure time
+        - Gain and color gains
+        - Brightness, contrast, saturation, sharpness
+        - Denoising strength
+        - White balance toggle and manual control
+        - Auto exposure toggle
+        - Auto gain toggle
+        - Toggle for all automatic image processing
+        - Demosaicing toggle (on/off or raw mode)
+    - Detection log window (e.g. last 10 detections with time and type)
+    - System status and diagnostics
+- Constraints:
+    - All camera settings must apply only after safely pausing the stream, applying changes, then restarting the stream
+- Depends on:
+    - CameraInitializer, DetectorManager, FrameBuffer, TouchscreenControl
+
+MODULE: TouchscreenControl
+- Purpose: Enable or disable Raspberry Pi touchscreen video output while keeping touch input active
+- Inputs:
+    - User toggle (from web UI or local command)
+- Outputs:
+    - System call to turn video signal on or off via vcgencmd
+- Depends on:
+    - subprocess
+    - Raspberry Pi display hardware
+
+MODULE: WebServer
+- Purpose: Serve a web-based control and monitoring interface
+- Inputs:
+    - HTTP requests from browser (e.g., mobile phone)
+- Outputs:
+    - Live stream preview (/stream)
+    - UI settings and status page (/)
+    - Camera FPS adjustment (/set_fps)
+    - Touchscreen toggle (/toggle_screen)
+    - Full camera configuration
+    - Flash detection parameters (fine-tuned slider and numeric input)
+    - Laser detection parameters (fine-tuned slider and numeric input)
+    - Manual buffer save button
+    - Auto-save toggles for flash and laser
+    - Alert sound toggles (distinct for flash and laser)
+    - Detection event log view (last 10 events)
+    - Fullscreen video or collapsible UI support
+    - System info (optional: CPU temp, memory usage, etc.)
+- Constraints:
+    - Camera setting changes must safely pause and resume the video stream
+- Depends on:
+    - Flask or similar web framework
+    - Integration with DetectorManager, FrameBuffer, TouchscreenControl, CameraInitializer
+
+MODULE: MainController
+- Purpose: Coordinate live camera capture, detection, and buffering
+- Inputs:
+    - CameraInitializer output (frame stream)
+- Outputs:
+    - Sends frames to DetectorManager
+    - Feeds frames into FrameBuffer
+    - Triggers buffer save if detection occurs (with auto timestamped filename)
+    - Later: interacts with UI and WebServer
+- Depends on:
+    - CameraInitializer, DetectorManager, FrameBuffer
+
+# Notes:
+- All modules will use shared config structures so they can be updated live
+- Detection logic is frame-by-frame and should operate under real-time constraints
+- Camera reconfiguration must always pause/resume the stream to avoid DMA or buffer lockups
+- Logging, file management, and diagnostics can be added as a separate utility module later
