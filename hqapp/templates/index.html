@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pi Camera Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { margin:0; background:#000; color:#fff; font-family:sans-serif; }
+        #stream { width:100vw; height:auto; display:block; }
+        #controls { position:fixed; top:10px; left:10px; background:rgba(0,0,0,0.6); padding:10px; border-radius:8px; }
+        input, select, button { width:100%; margin-top:5px; }
+    </style>
+</head>
+<body>
+    <img id="stream" src="/stream" onclick="toggleFull()">
+    <div id="controls">
+        <label>Gain <input type="range" min="1" max="32" step="0.1" value="{{ gain }}" oninput="update('gain', this.value)"></label>
+        <label>Shutter <input type="range" min="100" max="1000000" step="100" value="{{ shutter }}" oninput="update('shutter', this.value)"></label>
+        <label>Brightness <input type="range" min="-1" max="1" step="0.1" value="{{ brightness }}" oninput="update('brightness', this.value)"></label>
+        <label>FPS <input type="range" min="1" max="60" value="{{ fps }}" oninput="update('fps', this.value)"></label>
+        <label>Resolution
+            <select onchange="update('resolution', this.value)">
+                <option value="640x480" {% if resolution=='640x480' %}selected{% endif %}>640x480</option>
+                <option value="1280x720" {% if resolution=='1280x720' %}selected{% endif %}>1280x720</option>
+                <option value="1920x1080" {% if resolution=='1920x1080' %}selected{% endif %}>1920x1080</option>
+                <option value="2028x1080" {% if resolution=='2028x1080' %}selected{% endif %}>2028x1080 binned</option>
+            </select>
+        </label>
+        <button onclick="snapshot()">Snapshot</button>
+        <button onclick="record()" id="recbtn">Start Recording</button>
+        <label><input type="checkbox" id="alert-bright" checked> Bright Alert</label>
+        <label><input type="checkbox" id="alert-laser" checked> Laser Alert</label>
+        <label><input type="checkbox" id="alert-record"> Record on Alert</label>
+        <button onclick="toggleScreen()">Toggle Screen</button>
+        <button onclick="location.href='/logout'">Logout</button>
+    </div>
+    <audio id="beep" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YdIAAA=="></audio>
+    <script>
+        let recording = false;
+        const evt = new EventSource('/events');
+        evt.onmessage = e => {
+            document.getElementById('beep').play();
+            if (document.getElementById('alert-record').checked) {
+                fetch('/record', {method:'POST', body:new URLSearchParams({'action':'start','preroll':'1'})});
+            }
+        };
+        function update(k,v){ fetch('/control', {method:'POST', body:new URLSearchParams([[k,v]])}); }
+        function snapshot(){ window.open('/snapshot','_blank'); }
+        function record(){
+            fetch('/record', {method:'POST', body:new URLSearchParams({'action':recording?'stop':'start'})});
+            recording=!recording; document.getElementById('recbtn').textContent=recording?'Stop Recording':'Start Recording'; }
+        function toggleScreen(){ fetch('/toggle-screen', {method:'POST'}); }
+        function toggleFull(){ if(document.fullscreenElement){document.exitFullscreen();}else{document.getElementById('stream').requestFullscreen();}}
+    </script>
+</body>
+</html>
