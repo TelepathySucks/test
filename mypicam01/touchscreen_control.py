@@ -1,4 +1,8 @@
+"""Helpers for controlling the Pi's touchscreen power."""
+
+
 import subprocess
+
 
 class TouchscreenControl:
     @staticmethod
