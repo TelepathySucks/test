@@ -103,6 +103,22 @@ class MainController:
             if new_camera_config.get('fps') and new_camera_config['fps'] != old_fps:
                 self.buffer.update_config(fps=new_camera_config['fps'])
 
+    def update_detection(self, detection_cfg):
+        """Update detection parameters for flash and laser detectors."""
+        self.config['detection'].update(detection_cfg)
+        self.flash_detector.threshold = self.config['detection'].get(
+            'flash_threshold', self.flash_detector.threshold
+        )
+        self.laser_detector.threshold = self.config['detection'].get(
+            'laser_threshold', self.laser_detector.threshold
+        )
+        self.laser_detector.min_blob = self.config['detection'].get(
+            'min_blob', self.laser_detector.min_blob
+        )
+        self.laser_detector.max_blob = self.config['detection'].get(
+            'max_blob', self.laser_detector.max_blob
+        )
+
     def run_loop(self):
         """Capture frames continuously and run detection."""
         while not self.stop_event.is_set():

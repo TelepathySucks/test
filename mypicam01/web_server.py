@@ -118,7 +118,12 @@ def get_config():
 def update_config():
     """Update detection or camera settings from the client."""
     data = request.json or {}
-    config['detection'].update(data.get('detection', {}))
+    detect_data = data.get('detection', {})
+    detect_changed = False
+    for key, val in detect_data.items():
+        if config['detection'].get(key) != val:
+            config['detection'][key] = val
+            detect_changed = True
 
     cam_data = data.get('camera', {})
     if 'resolution' in cam_data:
@@ -137,6 +142,8 @@ def update_config():
         config['buffer']['length'] = buffer_data['length']
         controller.buffer.update_config(length=buffer_data['length'])
 
+    if detect_changed:
+        controller.update_detection(config['detection'])
     if reconfig_needed:
         controller.reconfigure_camera(config['camera'])
 
