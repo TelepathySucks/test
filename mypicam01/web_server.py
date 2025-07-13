@@ -98,17 +98,24 @@ def get_config():
 
 @app.route('/update_config', methods=['POST'])
 def update_config():
-    data = request.json
+    data = request.json or {}
     config['detection'].update(data.get('detection', {}))
+
     cam_data = data.get('camera', {})
     if 'resolution' in cam_data:
         res = cam_data['resolution']
         if isinstance(res, str) and 'x' in res:
             cam_data['resolution'] = tuple(int(x) for x in res.split('x'))
-    config['camera'].update(cam_data)
+
+    reconfig_needed = False
+    for key, val in cam_data.items():
+        if config['camera'].get(key) != val:
+            config['camera'][key] = val
+            reconfig_needed = True
+
     config['buffer'].update(data.get('buffer', {}))
 
-    if 'camera' in data:
+    if reconfig_needed:
         controller.reconfigure_camera(config['camera'])
 
     return jsonify({'status': 'updated'})
