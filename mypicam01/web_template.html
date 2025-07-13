@@ -119,6 +119,12 @@
   </div>
 
   <div class="control">
+    <label>Buffer Length (s) <span id="bufferLenVal"></span></label>
+    <input type="range" id="bufferLength" min="1" max="30" step="1"
+           oninput="document.getElementById('bufferLenVal').innerText = this.value">
+  </div>
+
+  <div class="control">
     <label>Buffer Memory: <span id="bufferMem"></span> MB</label>
     <label>CPU Temp: <span id="cpuTemp"></span>°C</label>
   </div>
@@ -180,6 +186,8 @@
       document.getElementById('demosaic').checked = cfg.camera.demosaic !== 'off';
 
       document.getElementById('bufferMem').innerText = cfg.buffer.memory_usage;
+      document.getElementById('bufferLength').value = cfg.buffer.length;
+      document.getElementById('bufferLenVal').innerText = cfg.buffer.length;
       document.getElementById('cpuTemp').innerText = cfg.cpu_temp !== null ? cfg.cpu_temp : 'N/A';
 
       const logBox = document.getElementById('logBox');
@@ -215,6 +223,10 @@
         ae: document.getElementById('ae').checked,
         agc: document.getElementById('agc').checked,
         demosaic: document.getElementById('demosaic').checked ? 'on' : 'off'
+      }
+    ,
+      buffer: {
+        length: parseInt(document.getElementById('bufferLength').value)
       }
     };
     fetch('/update_config', {

@@ -132,7 +132,10 @@ def update_config():
             config['camera'][key] = val
             reconfig_needed = True
 
-    config['buffer'].update(data.get('buffer', {}))
+    buffer_data = data.get('buffer', {})
+    if 'length' in buffer_data and buffer_data['length'] != config['buffer'].get('length'):
+        config['buffer']['length'] = buffer_data['length']
+        controller.buffer.update_config(length=buffer_data['length'])
 
     if reconfig_needed:
         controller.reconfigure_camera(config['camera'])

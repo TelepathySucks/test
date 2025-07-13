@@ -31,6 +31,8 @@ class MainController:
     def start(self):
         """Begin capturing frames and processing detections."""
         with self.stream_lock:
+            if self.running:
+                return
             self._apply_camera_config()
             self.picam2.start()
             self.running = True
@@ -89,6 +91,7 @@ class MainController:
             if self.thread:
                 self.thread.join()
             self.picam2.stop()
+            old_fps = self.config['camera'].get('fps')
             self.config['camera'].update(new_camera_config)
             self._apply_camera_config()
             self.picam2.start()
@@ -96,6 +99,10 @@ class MainController:
             self.stop_event.clear()
             self.thread = threading.Thread(target=self.run_loop, daemon=True)
             self.thread.start()
+
+            # Adjust buffer FPS if changed
+            if new_camera_config.get('fps') and new_camera_config['fps'] != old_fps:
+                self.buffer.update_config(fps=new_camera_config['fps'])
 
     def run_loop(self):
         """Capture frames continuously and run detection."""

@@ -20,6 +20,19 @@ class FrameBuffer:
         self.output_dir = "captures"
         os.makedirs(self.output_dir, exist_ok=True)
 
+    def update_config(self, fps=None, length=None):
+        """Adjust buffer settings such as FPS and length safely."""
+        with self.lock:
+            if fps is not None:
+                self.fps = fps
+            if length is not None:
+                self.buffer_seconds = length
+            new_max = int(self.buffer_seconds * self.fps)
+            if new_max != self.max_frames:
+                self.max_frames = new_max
+                self.frames = deque(list(self.frames)[-self.max_frames:],
+                                   maxlen=self.max_frames)
+
     def add_frame(self, frame, timestamp):
         """Append a frame and timestamp to the buffer."""
         with self.lock:
