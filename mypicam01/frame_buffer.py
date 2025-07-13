@@ -1,12 +1,17 @@
-import threading
-import cv2
-import time
+"""In-memory rolling video buffer for pre/post event recording."""
+
 import datetime
 import os
+import threading
 from collections import deque
 
+import cv2
+
 class FrameBuffer:
+    """Maintain a fixed-size deque of frames for quick saving."""
+
     def __init__(self, config):
+        """Create the buffer according to ``config``."""
         self.buffer_seconds = config.get('length', 5)
         self.fps = config.get('fps', 10)
         self.max_frames = int(self.buffer_seconds * self.fps)
@@ -16,10 +21,12 @@ class FrameBuffer:
         os.makedirs(self.output_dir, exist_ok=True)
 
     def add_frame(self, frame, timestamp):
+        """Append a frame and timestamp to the buffer."""
         with self.lock:
             self.frames.append((frame.copy(), timestamp))
 
     def save_to_file(self):
+        """Write the buffered frames to an MP4 file."""
         with self.lock:
             if not self.frames:
                 return
@@ -38,6 +45,7 @@ class FrameBuffer:
             print(f"[BUFFER] Saved video to {filepath}")
 
     def estimate_memory_usage(self):
+        """Return approximate buffer memory usage in megabytes."""
         if not self.frames:
             return 0
         h, w, c = self.frames[0][0].shape

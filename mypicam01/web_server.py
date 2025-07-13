@@ -1,9 +1,12 @@
-from flask import Flask, render_template_string, Response, request, jsonify
-import time
+"""Flask web server exposing the surveillance UI and API."""
+
 import datetime
 import subprocess
 import threading
+import time
+
 import cv2
+from flask import Flask, render_template_string, Response, request, jsonify
 from main_controller import MainController
 
 app = Flask(__name__)
@@ -44,18 +47,17 @@ config = {
 
 controller = MainController(config)
 
-event_log = []
+event_log: list[str] = []
 event_log_lock = threading.Lock()
 
-controller.set_trigger_callback(lambda msg: log_event(msg))
-controller.start()
+# Register callback and start the main controller after defining logging helper
 
 def get_cpu_temp():
     """Return the CPU temperature in Celsius or ``None`` if unavailable."""
     try:
-        output = subprocess.check_output(['vcgencmd', 'measure_temp']).decode()
+        output = subprocess.check_output(['vcgencmd', 'measure_temp'], text=True)
         return float(output.split('=')[1].split("'")[0])
-    except Exception:
+    except (subprocess.CalledProcessError, FileNotFoundError, IndexError, ValueError):
         return None
 
 # ---- Event Logging ----
@@ -67,14 +69,20 @@ def log_event(kind):
         if len(event_log) > 10:
             event_log.pop(0)
 
+controller.set_trigger_callback(log_event)
+controller.start()
+
 # ---- Web Interface ----
 @app.route('/')
 def index():
-    html = open("web_template.html").read()
+    """Serve the main HTML interface."""
+    with open("web_template.html", encoding="utf-8") as f:
+        html = f.read()
     return render_template_string(html)
 
 @app.route('/stream')
 def stream():
+    """Stream JPEG frames from the camera as multipart data."""
     def generate():
         while True:
             frame = controller.get_last_frame()
@@ -88,6 +96,7 @@ def stream():
 # ---- API Routes ----
 @app.route('/get_config')
 def get_config():
+    """Return the current runtime configuration as JSON."""
     with event_log_lock:
         log_copy = list(event_log)
 
@@ -107,6 +116,7 @@ def get_config():
 
 @app.route('/update_config', methods=['POST'])
 def update_config():
+    """Update detection or camera settings from the client."""
     data = request.json or {}
     config['detection'].update(data.get('detection', {}))
 
@@ -131,12 +141,14 @@ def update_config():
 
 @app.route('/save_buffer', methods=['POST'])
 def save_buffer():
+    """Persist the current buffer to disk."""
     controller.buffer.save_to_file()
     log_event("Manual Save")
     return jsonify({'status': 'buffer saved'})
 
 @app.route('/toggle_screen', methods=['POST'])
 def toggle_screen():
+    """Turn the attached touchscreen display on or off."""
     action = request.json.get('state')
     from touchscreen_control import TouchscreenControl
     if action == 'off':
@@ -148,4 +160,3 @@ def toggle_screen():
 # ---- Start Server ----
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, threaded=True)
-

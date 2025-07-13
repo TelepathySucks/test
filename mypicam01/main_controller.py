@@ -1,14 +1,20 @@
-import time
-import threading
+"""Main controller for camera capture, detection and buffering."""
+
 import os
 import subprocess
+import threading
+import time
+
 from picamera2 import Picamera2
 from frame_buffer import FrameBuffer
 from flash_detector import FlashDetector
 from laser_detector import LaserDetector
 
 class MainController:
+    """High level control of capture, detection and buffering."""
+
     def __init__(self, config):
+        """Initialize controller from a configuration dictionary."""
         self.picam2 = Picamera2()
         self.config = config
         self.buffer = FrameBuffer(config['buffer'])
@@ -23,6 +29,7 @@ class MainController:
         self.thread = None
 
     def start(self):
+        """Begin capturing frames and processing detections."""
         with self.stream_lock:
             self._apply_camera_config()
             self.picam2.start()
@@ -32,6 +39,7 @@ class MainController:
             self.thread.start()
 
     def _apply_camera_config(self):
+        """Configure the underlying ``Picamera2`` instance."""
         cfg = self.config['camera']
         controls = {
             "FrameDurationLimits": (
@@ -74,6 +82,7 @@ class MainController:
         self.picam2.set_controls(controls)
 
     def reconfigure_camera(self, new_camera_config):
+        """Safely update camera settings and restart the stream."""
         with self.stream_lock:
             self.running = False
             self.stop_event.set()
@@ -89,6 +98,7 @@ class MainController:
             self.thread.start()
 
     def run_loop(self):
+        """Capture frames continuously and run detection."""
         while not self.stop_event.is_set():
             try:
                 frame = self.picam2.capture_array()
@@ -118,6 +128,7 @@ class MainController:
             time.sleep(1 / self.config['camera']['fps'])
 
     def stop(self):
+        """Stop capturing and shut down the camera."""
         with self.stream_lock:
             self.running = False
             self.stop_event.set()
@@ -126,17 +137,20 @@ class MainController:
             self.picam2.stop()
 
     def set_trigger_callback(self, callback):
+        """Set a callback to be invoked on detection events."""
         self.trigger_callback = callback
 
     def get_last_frame(self):
+        """Return a copy of the most recently captured frame."""
         with self.last_frame_lock:
             return self.last_frame.copy() if self.last_frame is not None else None
 
     def play_alert(self, kind):
+        """Play an alert sound if the corresponding file exists."""
         sound_file = f"sounds/{kind}.wav"
         if os.path.exists(sound_file):
-            subprocess.Popen([
-                "aplay",
-                sound_file
-            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
+            subprocess.Popen(
+                ["aplay", sound_file],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
