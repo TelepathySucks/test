@@ -1,6 +1,7 @@
 import time
 import threading
 import os
+import subprocess
 from picamera2 import Picamera2
 from frame_buffer import FrameBuffer
 from flash_detector import FlashDetector
@@ -18,40 +19,81 @@ class MainController:
         self.last_frame = None
         self.last_frame_lock = threading.Lock()
         self.stream_lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.thread = None
 
     def start(self):
         with self.stream_lock:
             self._apply_camera_config()
             self.picam2.start()
             self.running = True
-            threading.Thread(target=self.run_loop, daemon=True).start()
+            self.stop_event.clear()
+            self.thread = threading.Thread(target=self.run_loop, daemon=True)
+            self.thread.start()
 
     def _apply_camera_config(self):
-        self.picam2.configure(self.picam2.create_video_configuration(
-            main={"size": self.config['camera']['resolution'], "format": "RGB888"},
-            controls={
-                "FrameDurationLimits": (
-                    int(1e6 / self.config['camera']['fps']),
-                    int(1e6 / self.config['camera']['fps'])
-                ),
-                "AnalogueGain": self.config['camera']['gain'],
-                "ExposureTime": self.config['camera']['exposure']
-            }
-        ))
+        cfg = self.config['camera']
+        controls = {
+            "FrameDurationLimits": (
+                int(1e6 / cfg['fps']),
+                int(1e6 / cfg['fps'])
+            ),
+            "AnalogueGain": cfg['gain'],
+            "ExposureTime": cfg['exposure'],
+            "AwbEnable": cfg.get('awb', False),
+            "AeEnable": cfg.get('ae', False),
+            "NoiseReductionMode": 0,
+            "Sharpness": cfg.get('sharpness', 0),
+            "Contrast": cfg.get('contrast', 0),
+            "Saturation": cfg.get('saturation', 0),
+            "Brightness": cfg.get('brightness', 0),
+        }
+        if 'colour_gains' in cfg:
+            controls['ColourGains'] = cfg['colour_gains']
+        if 'denoise' in cfg:
+            controls['NoiseReductionStrength'] = cfg['denoise']
+
+        if cfg.get('demosaic') == 'off':
+            self.picam2.set_digital_gain(1.0)
+            self.picam2.configure(
+                self.picam2.create_video_configuration(
+                    main={"size": cfg['resolution'], "format": "RGB888"},
+                    transform=None,
+                    raw=True,
+                )
+            )
+        else:
+            self.picam2.configure(
+                self.picam2.create_video_configuration(
+                    main={"size": cfg['resolution'], "format": "RGB888"},
+                    transform=None,
+                    controls=controls,
+                )
+            )
+
+        self.picam2.set_controls(controls)
 
     def reconfigure_camera(self, new_camera_config):
         with self.stream_lock:
             self.running = False
+            self.stop_event.set()
+            if self.thread:
+                self.thread.join()
             self.picam2.stop()
             self.config['camera'].update(new_camera_config)
             self._apply_camera_config()
             self.picam2.start()
             self.running = True
-            threading.Thread(target=self.run_loop, daemon=True).start()
+            self.stop_event.clear()
+            self.thread = threading.Thread(target=self.run_loop, daemon=True)
+            self.thread.start()
 
     def run_loop(self):
-        while self.running:
-            frame = self.picam2.capture_array()
+        while not self.stop_event.is_set():
+            try:
+                frame = self.picam2.capture_array()
+            except Exception:
+                continue
             timestamp = time.time()
             with self.last_frame_lock:
                 self.last_frame = frame.copy()
@@ -78,6 +120,9 @@ class MainController:
     def stop(self):
         with self.stream_lock:
             self.running = False
+            self.stop_event.set()
+            if self.thread:
+                self.thread.join()
             self.picam2.stop()
 
     def set_trigger_callback(self, callback):
@@ -90,4 +135,8 @@ class MainController:
     def play_alert(self, kind):
         sound_file = f"sounds/{kind}.wav"
         if os.path.exists(sound_file):
-            os.system(f"aplay {sound_file} >/dev/null 2>&1 &")
+            subprocess.Popen([
+                "aplay",
+                sound_file
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+

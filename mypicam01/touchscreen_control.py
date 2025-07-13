@@ -11,3 +11,4 @@ class TouchscreenControl:
             subprocess.run(['vcgencmd', 'display_power', '0'])
         elif state == 'on':
             subprocess.run(['vcgencmd', 'display_power', '1'])
+

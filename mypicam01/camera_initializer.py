@@ -1,11 +1,17 @@
+"""Camera initialization utilities."""
+
 from picamera2 import Picamera2
 
 class CameraInitializer:
+    """Helper to apply configuration options to the camera."""
+
     def __init__(self, config):
+        """Create the initializer with a configuration dict."""
         self.config = config
         self.picam2 = Picamera2()
 
     def apply_config(self):
+        """Apply the stored configuration to the underlying camera."""
         controls = {
             "FrameDurationLimits": (
                 int(1e6 / self.config['fps']),
@@ -45,4 +51,5 @@ class CameraInitializer:
         self.picam2.set_controls(controls)
 
     def get_camera(self):
+        """Return the configured ``Picamera2`` instance."""
         return self.picam2
