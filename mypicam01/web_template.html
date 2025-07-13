@@ -103,6 +103,7 @@
     });
   }
 
+  let lastSent = '';
   function pushConfig() {
     const data = {
       detection: {
@@ -114,11 +115,15 @@
         sound_laser: document.getElementById('soundLaser').checked
       }
     };
-    fetch('/update_config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
+    const payload = JSON.stringify(data);
+    if (payload !== lastSent) {
+      lastSent = payload;
+      fetch('/update_config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      });
+    }
   }
 
   function manualSave() {
@@ -138,8 +143,9 @@
   setInterval(() => {
     fetchConfig();
     pushConfig();
-  }, 1500);
+  }, 3000);
 </script>
 
 </body>
 </html>
+

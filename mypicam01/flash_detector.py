@@ -1,4 +1,8 @@
+"""Detect sudden overall brightness changes (flash detection)."""
+
+
 import numpy as np
+
 
 class FlashDetector:
     def __init__(self, config):
