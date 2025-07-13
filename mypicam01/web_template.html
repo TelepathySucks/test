@@ -45,13 +45,70 @@
 
 <div id="settingsPanel">
   <div class="control">
-    <label>Flash Sensitivity</label>
+    <label>Flash Sensitivity <span id="flashVal"></span></label>
     <input type="range" id="flashSensitivity" min="1" max="20" step="0.5">
   </div>
 
   <div class="control">
-    <label>Laser Sensitivity</label>
+    <label>Laser Sensitivity <span id="laserVal"></span></label>
     <input type="range" id="laserSensitivity" min="1" max="100" step="1">
+  </div>
+
+  <div class="control">
+    <label>FPS <span id="fpsVal"></span></label>
+    <input type="range" id="fps" min="1" max="90" step="1">
+  </div>
+
+  <div class="control">
+    <label>Resolution</label>
+    <select id="resolution">
+      <option value="640x480">640x480</option>
+      <option value="1280x720">1280x720</option>
+      <option value="1920x1080">1920x1080</option>
+      <option value="2028x1080">2028x1080 (binned)</option>
+      <option value="2028x1520">2028x1520 (binned)</option>
+      <option value="4056x3040">4056x3040</option>
+    </select>
+  </div>
+
+  <div class="control">
+    <label>Shutter (µs)</label>
+    <input type="number" id="exposure">
+  </div>
+
+  <div class="control">
+    <label>Gain</label>
+    <input type="number" step="0.1" id="gain">
+  </div>
+
+  <div class="control">
+    <label>Colour Gain R</label>
+    <input type="number" step="0.1" id="cgR">
+    <label>Colour Gain B</label>
+    <input type="number" step="0.1" id="cgB">
+  </div>
+
+  <div class="control">
+    <label>Brightness</label>
+    <input type="range" id="brightness" min="-1" max="1" step="0.1">
+    <label>Contrast</label>
+    <input type="range" id="contrast" min="-1" max="1" step="0.1">
+    <label>Saturation</label>
+    <input type="range" id="saturation" min="-1" max="1" step="0.1">
+    <label>Sharpness</label>
+    <input type="range" id="sharpness" min="0" max="2" step="0.1">
+  </div>
+
+  <div class="control">
+    <label>Denoise Strength</label>
+    <input type="range" id="denoise" min="0" max="10" step="1">
+  </div>
+
+  <div class="control">
+    <label><input type="checkbox" id="awb"> Auto White Balance</label>
+    <label><input type="checkbox" id="ae"> Auto Exposure</label>
+    <label><input type="checkbox" id="agc"> Auto Gain</label>
+    <label><input type="checkbox" id="demosaic"> Demosaic</label>
   </div>
 
   <div class="control">
@@ -59,6 +116,17 @@
     <label><input type="checkbox" id="autosaveLaser"> Auto-save on Laser</label>
     <label><input type="checkbox" id="soundFlash"> Flash Alert Sound</label>
     <label><input type="checkbox" id="soundLaser"> Laser Alert Sound</label>
+  </div>
+
+  <div class="control">
+    <label>Buffer Length (s) <span id="bufferLenVal"></span></label>
+    <input type="range" id="bufferLength" min="1" max="30" step="1"
+           oninput="document.getElementById('bufferLenVal').innerText = this.value">
+  </div>
+
+  <div class="control">
+    <label>Buffer Memory: <span id="bufferMem"></span> MB</label>
+    <label>CPU Temp: <span id="cpuTemp"></span>°C</label>
   </div>
 
   <div class="control">
@@ -93,10 +161,34 @@
     fetch('/get_config').then(res => res.json()).then(cfg => {
       document.getElementById('flashSensitivity').value = cfg.detection.flash_threshold;
       document.getElementById('laserSensitivity').value = cfg.detection.laser_threshold;
+      document.getElementById('flashVal').innerText = cfg.detection.flash_threshold;
+      document.getElementById('laserVal').innerText = cfg.detection.laser_threshold;
       document.getElementById('autosaveFlash').checked = cfg.detection.autosave_flash;
       document.getElementById('autosaveLaser').checked = cfg.detection.autosave_laser;
       document.getElementById('soundFlash').checked = cfg.detection.sound_flash;
       document.getElementById('soundLaser').checked = cfg.detection.sound_laser;
+
+      document.getElementById('fps').value = cfg.camera.fps;
+      document.getElementById('fpsVal').innerText = cfg.camera.fps;
+      document.getElementById('resolution').value = cfg.camera.resolution;
+      document.getElementById('exposure').value = cfg.camera.exposure;
+      document.getElementById('gain').value = cfg.camera.gain;
+      document.getElementById('cgR').value = cfg.camera.colour_gains[0];
+      document.getElementById('cgB').value = cfg.camera.colour_gains[1];
+      document.getElementById('brightness').value = cfg.camera.brightness;
+      document.getElementById('contrast').value = cfg.camera.contrast;
+      document.getElementById('saturation').value = cfg.camera.saturation;
+      document.getElementById('sharpness').value = cfg.camera.sharpness;
+      document.getElementById('denoise').value = cfg.camera.denoise;
+      document.getElementById('awb').checked = cfg.camera.awb;
+      document.getElementById('ae').checked = cfg.camera.ae;
+      document.getElementById('agc').checked = cfg.camera.agc;
+      document.getElementById('demosaic').checked = cfg.camera.demosaic !== 'off';
+
+      document.getElementById('bufferMem').innerText = cfg.buffer.memory_usage;
+      document.getElementById('bufferLength').value = cfg.buffer.length;
+      document.getElementById('bufferLenVal').innerText = cfg.buffer.length;
+      document.getElementById('cpuTemp').innerText = cfg.cpu_temp !== null ? cfg.cpu_temp : 'N/A';
 
       const logBox = document.getElementById('logBox');
       logBox.innerHTML = cfg.log.map(l => `<div>${l}</div>`).join('');
@@ -112,6 +204,29 @@
         autosave_laser: document.getElementById('autosaveLaser').checked,
         sound_flash: document.getElementById('soundFlash').checked,
         sound_laser: document.getElementById('soundLaser').checked
+      },
+      camera: {
+        fps: parseInt(document.getElementById('fps').value),
+        resolution: document.getElementById('resolution').value,
+        exposure: parseInt(document.getElementById('exposure').value),
+        gain: parseFloat(document.getElementById('gain').value),
+        colour_gains: [
+          parseFloat(document.getElementById('cgR').value),
+          parseFloat(document.getElementById('cgB').value)
+        ],
+        brightness: parseFloat(document.getElementById('brightness').value),
+        contrast: parseFloat(document.getElementById('contrast').value),
+        saturation: parseFloat(document.getElementById('saturation').value),
+        sharpness: parseFloat(document.getElementById('sharpness').value),
+        denoise: parseInt(document.getElementById('denoise').value),
+        awb: document.getElementById('awb').checked,
+        ae: document.getElementById('ae').checked,
+        agc: document.getElementById('agc').checked,
+        demosaic: document.getElementById('demosaic').checked ? 'on' : 'off'
+      }
+    ,
+      buffer: {
+        length: parseInt(document.getElementById('bufferLength').value)
       }
     };
     fetch('/update_config', {
@@ -140,6 +255,5 @@
     pushConfig();
   }, 1500);
 </script>
-
 </body>
 </html>
