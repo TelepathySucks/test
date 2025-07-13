@@ -35,7 +35,6 @@ class CameraInitializer:
             controls["NoiseReductionStrength"] = self.config["denoise"]
 
         if self.config.get("demosaic") == "off":
-            self.picam2.set_digital_gain(1.0)
             self.picam2.configure(self.picam2.create_video_configuration(
                 main={"size": self.config["resolution"], "format": "RGB888"},
                 transform=None,
