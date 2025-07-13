@@ -1,5 +1,7 @@
 from flask import Flask, render_template_string, Response, request, jsonify
-import time, datetime, subprocess
+import time
+import datetime
+import subprocess
 import cv2
 from main_controller import MainController
 
@@ -22,6 +24,15 @@ config = {
         'fps': 10,
         'exposure': 10000,
         'gain': 2.0,
+        'colour_gains': [1.0, 1.0],
+        'brightness': 0,
+        'contrast': 0,
+        'saturation': 0,
+        'sharpness': 0,
+        'denoise': 0,
+        'awb': False,
+        'ae': False,
+        'agc': False,
         'demosaic': 'on'
     },
     'buffer': {
@@ -35,6 +46,13 @@ controller.set_trigger_callback(lambda msg: log_event(msg))
 controller.start()
 
 event_log = []
+
+def get_cpu_temp():
+    try:
+        output = subprocess.check_output(['vcgencmd', 'measure_temp']).decode()
+        return float(output.split('=')[1].split("'")[0])
+    except Exception:
+        return None
 
 # ---- Event Logging ----
 def log_event(kind):
@@ -66,16 +84,28 @@ def stream():
 def get_config():
     return jsonify({
         'detection': config['detection'],
-        'camera': config['camera'],
-        'buffer': config['buffer'],
-        'log': event_log
+        'camera': {
+            **config['camera'],
+            'resolution': f"{config['camera']['resolution'][0]}x{config['camera']['resolution'][1]}"
+        },
+        'buffer': {
+            **config['buffer'],
+            'memory_usage': controller.buffer.estimate_memory_usage()
+        },
+        'log': event_log,
+        'cpu_temp': get_cpu_temp()
     })
 
 @app.route('/update_config', methods=['POST'])
 def update_config():
     data = request.json
     config['detection'].update(data.get('detection', {}))
-    config['camera'].update(data.get('camera', {}))
+    cam_data = data.get('camera', {})
+    if 'resolution' in cam_data:
+        res = cam_data['resolution']
+        if isinstance(res, str) and 'x' in res:
+            cam_data['resolution'] = tuple(int(x) for x in res.split('x'))
+    config['camera'].update(cam_data)
     config['buffer'].update(data.get('buffer', {}))
 
     if 'camera' in data:
@@ -92,12 +122,14 @@ def save_buffer():
 @app.route('/toggle_screen', methods=['POST'])
 def toggle_screen():
     action = request.json.get('state')
+    from touchscreen_control import TouchscreenControl
     if action == 'off':
-        subprocess.run(['vcgencmd', 'display_power', '0'])
+        TouchscreenControl.set_display_power('off')
     elif action == 'on':
-        subprocess.run(['vcgencmd', 'display_power', '1'])
+        TouchscreenControl.set_display_power('on')
     return jsonify({'status': f'screen turned {action}'})
 
 # ---- Start Server ----
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, threaded=True)
+
