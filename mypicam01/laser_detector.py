@@ -1,8 +1,13 @@
+"""Laser-spot detection."""
+
 import cv2
 import numpy as np
 
 class LaserDetector:
+    """Detect focused bright spots against a dark background."""
+
     def __init__(self, config):
+        """Create the detector with configuration options."""
         self.threshold = config.get('laser_threshold', 50)
         self.min_blob = config.get('min_blob', 5)
         self.max_blob = config.get('max_blob', 100)
@@ -10,6 +15,7 @@ class LaserDetector:
         self.alpha = 0.95  # Background blend weight (0 = no memory, 1 = static bg)
 
     def check(self, frame):
+        """Return ``True`` if a laser spot is detected in ``frame``."""
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
         if self.background is None:
