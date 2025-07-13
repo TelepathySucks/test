@@ -1,5 +1,8 @@
+"""Detect small bright spots in a mostly dark frame (laser detection)."""
+
 import cv2
 import numpy as np
+
 
 class LaserDetector:
     def __init__(self, config):
@@ -7,7 +10,8 @@ class LaserDetector:
         self.min_blob = config.get('min_blob', 5)
         self.max_blob = config.get('max_blob', 100)
         self.background = None
-        self.alpha = 0.95  # Background blend weight (0 = no memory, 1 = static bg)
+        # Blend weight for background model (0 = no memory, 1 = static)
+        self.alpha = 0.95
 
     def check(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
@@ -25,7 +29,11 @@ class LaserDetector:
         _, thresh = cv2.threshold(diff, self.threshold, 255, cv2.THRESH_BINARY)
 
         # Filter by contour size (to avoid single pixel noise)
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(
+            thresh,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,
+        )
         for cnt in contours:
             area = cv2.contourArea(cnt)
             if self.min_blob < area < self.max_blob:

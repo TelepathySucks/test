@@ -1,4 +1,8 @@
+"""Initialise and configure Picamera2 with custom settings."""
+
+
 from picamera2 import Picamera2
+
 
 class CameraInitializer:
     def __init__(self, config):
