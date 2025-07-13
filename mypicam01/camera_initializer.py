@@ -1,11 +1,17 @@
+"""Camera initialization utilities."""
+
 from picamera2 import Picamera2
 
 class CameraInitializer:
+    """Helper to apply configuration options to the camera."""
+
     def __init__(self, config):
+        """Create the initializer with a configuration dict."""
         self.config = config
         self.picam2 = Picamera2()
 
     def apply_config(self):
+        """Apply the stored configuration to the underlying camera."""
         controls = {
             "FrameDurationLimits": (
                 int(1e6 / self.config['fps']),
@@ -29,7 +35,6 @@ class CameraInitializer:
             controls["NoiseReductionStrength"] = self.config["denoise"]
 
         if self.config.get("demosaic") == "off":
-            self.picam2.set_digital_gain(1.0)
             self.picam2.configure(self.picam2.create_video_configuration(
                 main={"size": self.config["resolution"], "format": "RGB888"},
                 transform=None,
@@ -45,4 +50,5 @@ class CameraInitializer:
         self.picam2.set_controls(controls)
 
     def get_camera(self):
+        """Return the configured ``Picamera2`` instance."""
         return self.picam2
